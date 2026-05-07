@@ -47,12 +47,24 @@ Regler:
         _log = log;
     }
 
+    public int MaxInputCharacters => _options.MaxInputCharacters;
+
+    private void EnsureInputWithinLimit(string input)
+    {
+        if (input.Length > _options.MaxInputCharacters)
+        {
+            throw new OrdbogenApiException(
+                $"Teksten er for lang ({input.Length:N0} tegn). Maksimum er {_options.MaxInputCharacters:N0} tegn.");
+        }
+    }
+
     public async Task<SkrivecoachResultat> TjekTekstAsync(string tekst, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(tekst))
         {
             return new SkrivecoachResultat(Array.Empty<Correction>(), null, 0);
         }
+        EnsureInputWithinLimit(tekst);
 
         var request = new ResponsesRequest
         {
@@ -130,6 +142,7 @@ Regler:
         {
             return new ForbedringsResultat(Array.Empty<Forbedring>(), Array.Empty<string>(), null, 0);
         }
+        EnsureInputWithinLimit(tekst);
 
         var afsnit = SplitParagraphs(tekst);
         if (afsnit.Length == 0)
@@ -205,6 +218,7 @@ Regler:
         {
             return new LaererFeedbackResultat(null, trin, null, 0);
         }
+        EnsureInputWithinLimit(tekst);
 
         var instructions = BuildLaererInstructions(trin);
 
@@ -325,6 +339,7 @@ Regler:
         {
             return new OpgaveHjaelpResultat(null, trin, null, 0);
         }
+        EnsureInputWithinLimit(opgave);
 
         var instructions = BuildHjaelpInstructions(trin);
 

@@ -225,6 +225,24 @@ h1:focus {
     flex-wrap: wrap;
 }
 
+.char-counter {
+    display: flex;
+    justify-content: flex-end;
+    gap: .65rem;
+    align-items: center;
+    font-size: .82rem;
+    color: #94a3b8;
+    margin-top: -.25rem;
+}
+
+.char-counter-tal { font-variant-numeric: tabular-nums; }
+
+.char-counter-near { color: #b45309; }
+.char-counter-near .char-counter-tal { color: #b45309; font-weight: 600; }
+
+.char-counter-over { color: #b91c1c; font-weight: 600; }
+.char-counter-over .char-counter-tal { color: #b91c1c; }
+
 .editor-actions .btn-link { margin-left: auto; }
 
 .btn-primary,

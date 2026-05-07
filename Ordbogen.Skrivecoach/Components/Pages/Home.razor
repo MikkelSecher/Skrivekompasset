@@ -71,7 +71,15 @@
                           @bind:event="oninput"
                           placeholder="@PlaceholderText"
                           rows="14"
+                          maxlength="@Skrivecoach.MaxInputCharacters"
                           disabled="@_isChecking"></textarea>
+                <div class="char-counter @CounterCssClass">
+                    @if (CurrentInput.Length > Skrivecoach.MaxInputCharacters)
+                    {
+                        <span>For lang — fjern @(CurrentInput.Length - Skrivecoach.MaxInputCharacters) tegn.</span>
+                    }
+                    <span class="char-counter-tal">@CurrentInput.Length.ToString("N0") / @Skrivecoach.MaxInputCharacters.ToString("N0")</span>
+                </div>
             }
             else if (_mode == CoachMode.Stavning && _corrections is not null)
             {
@@ -106,7 +114,7 @@
             <div class="editor-actions">
                 @if (!HarResultat)
                 {
-                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(CurrentInput))">
+                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(CurrentInput) || CurrentInput.Length > Skrivecoach.MaxInputCharacters)">
                         @if (_isChecking)
                         {
                             <span class="spinner"></span>
@@ -398,6 +406,18 @@
         }
     }
 
+    private string CounterCssClass
+    {
+        get
+        {
+            var max = Skrivecoach.MaxInputCharacters;
+            var len = CurrentInput.Length;
+            if (len > max) return "char-counter-over";
+            if (len > max * 0.9) return "char-counter-near";
+            return string.Empty;
+        }
+    }
+
     private long? _latencyMs => _mode switch
     {
         CoachMode.Stavning => _stavningLatencyMs,
@@ -605,12 +625,27 @@
         }
 
         _tekst = _tekst[..start] + c.Suggested + _tekst[end..];
-        // Offsets på resterende corrections er nu inkonsistente — gå tilbage til redigerings-mode
-        // og lad brugeren tjekke igen for at få nye offsets.
-        _corrections = null;
-        _stavningLatencyMs = null;
-        _stavningUsage = null;
+        // Fjern den anvendte rettelse og realign de resterende. Deres Original-strenge
+        // er stadig gyldige; kun deres Start/End-offsets er forskudt af tekst-ændringen.
+        _corrections.RemoveAt(index);
+        RealignResterendeCorrections();
         _fejlbesked = null;
+    }
+
+    private void RealignResterendeCorrections()
+    {
+        if (_corrections is null || _corrections.Count == 0) return;
+        var opdateret = new List<Correction>(_corrections.Count);
+        foreach (var c in _corrections)
+        {
+            var (s, e) = LokaliserOriginal(c);
+            if (s >= 0)
+            {
+                opdateret.Add(c with { Start = s, End = e });
+            }
+            // else: original ikke længere i teksten (fx et ord der allerede er blevet rettet) — drop
+        }
+        _corrections = opdateret;
     }
 
     private void AnvendAlleCorrections()
