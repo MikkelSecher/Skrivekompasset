@@ -303,6 +303,19 @@ h1:focus {
     to { transform: rotate(360deg); }
 }
 
+.elapsed {
+    margin-left: 6px;
+    font-variant-numeric: tabular-nums;
+    opacity: .8;
+}
+
+.patience-note {
+    margin: 8px 0 0;
+    font-size: .9em;
+    color: #666;
+    font-style: italic;
+}
+
 .error-banner {
     background: #fde2e2;
     border: 1px solid #f4b5b5;

@@ -119,6 +119,7 @@
                         {
                             <span class="spinner"></span>
                             <span>@CheckingLabel</span>
+                            <span class="elapsed">@_elapsedSeconds.ToString("0.0", System.Globalization.CultureInfo.GetCultureInfo("da-DK"))s</span>
                         }
                         else
                         {
@@ -140,6 +141,13 @@
                 }
                 <button class="btn-link" @onclick="Ryd" disabled="@_isChecking">Ryd</button>
             </div>
+
+            @if (_isChecking)
+            {
+                <p class="patience-note">
+                    AI-svar tager ofte 10+ sekunder — vær tålmodig mens den arbejder.
+                </p>
+            }
 
             @if (!string.IsNullOrEmpty(_fejlbesked))
             {
@@ -396,6 +404,10 @@
     private string? _fejlbesked;
     private CancellationTokenSource? _cts;
 
+    private System.Timers.Timer? _elapsedTimer;
+    private System.Diagnostics.Stopwatch? _elapsedWatch;
+    private double _elapsedSeconds;
+
     private string CurrentInput
     {
         get => _mode == CoachMode.Hjaelp ? _hjaelpTekst : _tekst;
@@ -558,6 +570,8 @@
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
 
+        StartElapsedTimer();
+
         try
         {
             if (_mode == CoachMode.Stavning)
@@ -606,8 +620,32 @@
         }
         finally
         {
+            StopElapsedTimer();
             _isChecking = false;
         }
+    }
+
+    private void StartElapsedTimer()
+    {
+        _elapsedSeconds = 0;
+        _elapsedWatch = System.Diagnostics.Stopwatch.StartNew();
+
+        if (_elapsedTimer is null)
+        {
+            _elapsedTimer = new System.Timers.Timer(200) { AutoReset = true };
+            _elapsedTimer.Elapsed += (_, _) =>
+            {
+                _elapsedSeconds = _elapsedWatch?.Elapsed.TotalSeconds ?? 0;
+                _ = InvokeAsync(StateHasChanged);
+            };
+        }
+        _elapsedTimer.Start();
+    }
+
+    private void StopElapsedTimer()
+    {
+        _elapsedTimer?.Stop();
+        _elapsedWatch?.Stop();
     }
 
     // --- Stavning / grammatik ---
@@ -838,5 +876,6 @@
     {
         _cts?.Cancel();
         _cts?.Dispose();
+        _elapsedTimer?.Dispose();
     }
 }
