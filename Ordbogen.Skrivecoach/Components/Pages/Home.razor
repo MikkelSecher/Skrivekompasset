@@ -1,0 +1,558 @@
+@page "/"
+@rendermode InteractiveServer
+@using Ordbogen.Skrivecoach.Models
+@using Ordbogen.Skrivecoach.Services
+@inject SkrivecoachService Skrivecoach
+@inject ILogger<Home> Log
+@implements IDisposable
+
+<PageTitle>Dansk Skrivecoach</PageTitle>
+
+<div class="skrivecoach">
+    <header class="skrivecoach-header">
+        <h1>Dansk Skrivecoach</h1>
+        <p class="lead">@LeadText</p>
+    </header>
+
+    <div class="mode-toggle" role="tablist">
+        <button class="mode-tab @(_mode == CoachMode.Stavning ? "active" : "")"
+                role="tab"
+                aria-selected="@(_mode == CoachMode.Stavning)"
+                disabled="@_isChecking"
+                @onclick="() => SetMode(CoachMode.Stavning)">
+            Stavning &amp; grammatik
+        </button>
+        <button class="mode-tab @(_mode == CoachMode.Forbedringer ? "active" : "")"
+                role="tab"
+                aria-selected="@(_mode == CoachMode.Forbedringer)"
+                disabled="@_isChecking"
+                @onclick="() => SetMode(CoachMode.Forbedringer)">
+            Forbedringsforslag
+        </button>
+        <button class="mode-tab @(_mode == CoachMode.Laerer ? "active" : "")"
+                role="tab"
+                aria-selected="@(_mode == CoachMode.Laerer)"
+                disabled="@_isChecking"
+                @onclick="() => SetMode(CoachMode.Laerer)">
+            Lærer-feedback
+        </button>
+    </div>
+
+    @if (_mode == CoachMode.Laerer)
+    {
+        <div class="klassetrin-vaelger">
+            <label for="klassetrin">Klassetrin:</label>
+            <select id="klassetrin"
+                    class="klassetrin-select"
+                    disabled="@_isChecking"
+                    @bind="_klassetrin">
+                <option value="@Klassetrin.Indskoling">Indskoling (0.-3. klasse)</option>
+                <option value="@Klassetrin.Mellemtrin">Mellemtrin (4.-6. klasse)</option>
+                <option value="@Klassetrin.Udskoling">Udskoling (7.-9. klasse)</option>
+                <option value="@Klassetrin.Gymnasium">Gymnasium</option>
+                <option value="@Klassetrin.Voksen">Voksen / generelt</option>
+            </select>
+        </div>
+    }
+
+    <div class="skrivecoach-layout">
+        <section class="editor-pane">
+            @if (!HarResultat)
+            {
+                <textarea class="editor-input"
+                          @bind="_tekst"
+                          @bind:event="oninput"
+                          placeholder="@PlaceholderText"
+                          rows="14"
+                          disabled="@_isChecking"></textarea>
+            }
+            else if (_mode == CoachMode.Stavning && _corrections is not null)
+            {
+                <AnnotatedText Text="@_tekst" Corrections="@_corrections" />
+            }
+            else if (_mode == CoachMode.Forbedringer && _forbedringer is not null)
+            {
+                <div class="paragraph-view">
+                    @for (var i = 0; i < _afsnit.Length; i++)
+                    {
+                        var idx = i;
+                        var harForslag = _forbedringer.Any(f => f.ParagraphIndex == idx);
+                        <p class="afsnit @(harForslag ? "afsnit-har-forslag" : "")">
+                            @if (harForslag)
+                            {
+                                <span class="afsnit-marker" title="Forslag tilgængeligt">💡</span>
+                            }
+                            @_afsnit[idx]
+                        </p>
+                    }
+                </div>
+            }
+            else if (_mode == CoachMode.Laerer && _laererFeedback is not null)
+            {
+                <div class="readonly-text">@_tekst</div>
+            }
+
+            <div class="editor-actions">
+                @if (!HarResultat)
+                {
+                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(_tekst))">
+                        @if (_isChecking)
+                        {
+                            <span class="spinner"></span>
+                            <span>@CheckingLabel</span>
+                        }
+                        else
+                        {
+                            <span>@CheckButtonLabel</span>
+                        }
+                    </button>
+                }
+                else
+                {
+                    <button class="btn-secondary" @onclick="Rediger">Rediger igen</button>
+                    @if (_mode == CoachMode.Stavning && _corrections is { Count: > 0 })
+                    {
+                        <button class="btn-primary" @onclick="AnvendAlleCorrections">Anvend alle (@_corrections.Count)</button>
+                    }
+                    else if (_mode == CoachMode.Forbedringer && _forbedringer is { Count: > 0 })
+                    {
+                        <button class="btn-primary" @onclick="AnvendAlleForbedringer">Anvend alle (@_forbedringer.Count)</button>
+                    }
+                }
+                <button class="btn-link" @onclick="Ryd" disabled="@_isChecking">Ryd</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(_fejlbesked))
+            {
+                <div class="error-banner">
+                    <strong>Fejl:</strong> @_fejlbesked
+                </div>
+            }
+        </section>
+
+        <aside class="sidepanel">
+            @if (!HarResultat)
+            {
+                <div class="sidepanel-empty">
+                    <p>@SidepanelEmptyText</p>
+                    <details>
+                        <summary>Eksempel</summary>
+                        <button class="btn-link" @onclick="IndsætEksempel">Indsæt eksempel-tekst</button>
+                    </details>
+                </div>
+            }
+            else if (_mode == CoachMode.Stavning && _corrections is not null)
+            {
+                @if (_corrections.Count == 0)
+                {
+                    <div class="sidepanel-success">
+                        <div class="check-icon" aria-hidden="true">✓</div>
+                        <h3>Ingen fejl fundet</h3>
+                        <p>Modellen fandt ingen stave-, grammatik- eller stilfejl i teksten.</p>
+                        <button class="btn-secondary" @onclick="Rediger">Rediger tekst</button>
+                    </div>
+                }
+                else
+                {
+                    <h3>@_corrections.Count fejl fundet</h3>
+                    <ul class="correction-list">
+                        @for (var i = 0; i < _corrections.Count; i++)
+                        {
+                            var idx = i;
+                            var c = _corrections[idx];
+                            <li class="correction @CssClassFor(c)">
+                                <div class="correction-head">
+                                    <span class="badge">@LabelFor(c)</span>
+                                </div>
+                                <div class="correction-diff">
+                                    <span class="from">@c.Original</span>
+                                    <span class="arrow">→</span>
+                                    <span class="to">@(string.IsNullOrEmpty(c.Suggested) ? "(slet)" : c.Suggested)</span>
+                                </div>
+                                <p class="correction-explanation">@c.Explanation</p>
+                                <div class="correction-actions">
+                                    <button class="btn-small btn-primary" @onclick="() => AnvendCorrection(idx)">Anvend</button>
+                                    <button class="btn-small btn-link" @onclick="() => IgnorerCorrection(idx)">Ignorer</button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            }
+            else if (_mode == CoachMode.Laerer && _laererFeedback is not null)
+            {
+                <div class="laerer-feedback">
+                    <div class="laerer-header">
+                        <span class="badge">@KlassetrinLabel(_klassetrin)</span>
+                    </div>
+                    <section class="laerer-section ros">
+                        <h4>👍 Det er du god til</h4>
+                        <p>@_laererFeedback.Ros</p>
+                    </section>
+                    @if (_laererFeedback.Udfordringer is { Count: > 0 })
+                    {
+                        <section class="laerer-section udfordringer">
+                            <h4>💡 Det her kan blive bedre</h4>
+                            <ul class="udfordring-list">
+                                @foreach (var u in _laererFeedback.Udfordringer)
+                                {
+                                    <li class="udfordring">
+                                        <div class="udfordring-omraade">@u.Omraade</div>
+                                        <p class="udfordring-kommentar">@u.Kommentar</p>
+                                        @if (!string.IsNullOrWhiteSpace(u.EksempelFraTekst))
+                                        {
+                                            <blockquote class="udfordring-eksempel">@u.EksempelFraTekst</blockquote>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(u.Forslag))
+                                        {
+                                            <p class="udfordring-forslag"><strong>Forslag:</strong> @u.Forslag</p>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                    @if (_laererFeedback.NaesteSkridt is { Count: > 0 })
+                    {
+                        <section class="laerer-section skridt">
+                            <h4>✅ Næste skridt</h4>
+                            <ul class="skridt-list">
+                                @foreach (var s in _laererFeedback.NaesteSkridt)
+                                {
+                                    <li>@s</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_laererFeedback.Samlet))
+                    {
+                        <p class="laerer-samlet">@_laererFeedback.Samlet</p>
+                    }
+                    <div class="laerer-actions">
+                        <button class="btn-secondary" @onclick="Rediger">Rediger tekst</button>
+                    </div>
+                </div>
+            }
+            else if (_mode == CoachMode.Forbedringer && _forbedringer is not null)
+            {
+                @if (_forbedringer.Count == 0)
+                {
+                    <div class="sidepanel-success">
+                        <div class="check-icon" aria-hidden="true">✓</div>
+                        <h3>Ingen forbedringer foreslået</h3>
+                        <p>Modellen vurderer at teksten allerede er velformuleret.</p>
+                        <button class="btn-secondary" @onclick="Rediger">Rediger tekst</button>
+                    </div>
+                }
+                else
+                {
+                    <h3>@_forbedringer.Count forslag</h3>
+                    <ul class="forbedring-list">
+                        @for (var i = 0; i < _forbedringer.Count; i++)
+                        {
+                            var idx = i;
+                            var f = _forbedringer[idx];
+                            <li class="forbedring">
+                                <div class="forbedring-head">
+                                    <span class="badge">Afsnit @(f.ParagraphIndex + 1)</span>
+                                </div>
+                                <div class="forbedring-block original">
+                                    <div class="forbedring-label">Original</div>
+                                    <div class="forbedring-text">@f.Original</div>
+                                </div>
+                                <div class="forbedring-block suggested">
+                                    <div class="forbedring-label">Forslag</div>
+                                    <div class="forbedring-text">@f.Suggested</div>
+                                </div>
+                                <p class="correction-explanation">@f.Explanation</p>
+                                <div class="correction-actions">
+                                    <button class="btn-small btn-primary" @onclick="() => AnvendForbedring(idx)">Anvend</button>
+                                    <button class="btn-small btn-link" @onclick="() => IgnorerForbedring(idx)">Ignorer</button>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            }
+        </aside>
+    </div>
+
+    @if (_latencyMs is not null)
+    {
+        <footer class="skrivecoach-footer">
+            @(_mode == CoachMode.Stavning ? "Tjekket" : "Analyseret") på @(_latencyMs)ms
+            @if (_usage is not null)
+            {
+                <span> · @_usage.TotalTokens tokens (@_usage.InputTokens ind / @_usage.OutputTokens ud)</span>
+            }
+        </footer>
+    }
+</div>
+
+@code {
+    public enum CoachMode { Stavning, Forbedringer }
+
+    private CoachMode _mode = CoachMode.Stavning;
+    private string _tekst = string.Empty;
+
+    private List<Correction>? _corrections;
+    private List<Forbedring>? _forbedringer;
+    private string[] _afsnit = Array.Empty<string>();
+
+    private bool _isChecking;
+    private string? _fejlbesked;
+    private long? _latencyMs;
+    private ResponsesUsage? _usage;
+    private CancellationTokenSource? _cts;
+
+    private bool HarResultat => _corrections is not null || _forbedringer is not null;
+
+    private string LeadText => _mode == CoachMode.Stavning
+        ? "Indsæt en tekst og lad ordbogen.ai finde stave-, grammatik- og stilfejl."
+        : "Indsæt en tekst og få forslag til hvordan hvert afsnit kan blive skarpere.";
+
+    private string PlaceholderText => _mode == CoachMode.Stavning
+        ? "Indsæt eller skriv din danske tekst her..."
+        : "Indsæt en tekst med flere afsnit (adskilt af blanke linjer)...";
+
+    private string SidepanelEmptyText => _mode == CoachMode.Stavning
+        ? "Tryk Tjek tekst for at få feedback på stave-, grammatik- og stilfejl."
+        : "Tryk Foreslå forbedringer for at få omformuleringer pr. afsnit.";
+
+    private const string EksempelStavning =
+        "Han gik på en lang gå-tur og spilst en is sammen med hans bror. " +
+        "De snakkede meget om hvor lækre isene smag, og hvordan de gik forbi en gammel mand der såd på en bænk.";
+
+    private const string EksempelForbedringer =
+        "Vi har i lang tid haft et stort fokus på at forbedre kvaliteten af vores produkter. " +
+        "Det er noget vi tager meget alvorligt og som vi prioriterer højt.\n\n" +
+        "I løbet af det sidste år, har vi lavet en masse ændringer på den måde som vi arbejder på, og det har givet rigtig gode resultater i forhold til hvor tilfredse vores kunder er.\n\n" +
+        "Fremover vil vi fortsætte med at have fokus på dette område, fordi vi mener at det er vigtigt for vores forretning og for vores kunder.";
+
+    private void SetMode(CoachMode mode)
+    {
+        if (_mode == mode || _isChecking) return;
+        _mode = mode;
+        _corrections = null;
+        _forbedringer = null;
+        _afsnit = Array.Empty<string>();
+        _latencyMs = null;
+        _usage = null;
+        _fejlbesked = null;
+    }
+
+    private async Task TjekAsync()
+    {
+        _fejlbesked = null;
+        _isChecking = true;
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+
+        try
+        {
+            if (_mode == CoachMode.Stavning)
+            {
+                var resultat = await Skrivecoach.TjekTekstAsync(_tekst, _cts.Token);
+                _corrections = resultat.Corrections.ToList();
+                _forbedringer = null;
+                _usage = resultat.Usage;
+                _latencyMs = resultat.LatencyMs;
+            }
+            else
+            {
+                var resultat = await Skrivecoach.ForbedrTekstAsync(_tekst, _cts.Token);
+                _forbedringer = resultat.Forbedringer.ToList();
+                _afsnit = resultat.Afsnit.ToArray();
+                _corrections = null;
+                _usage = resultat.Usage;
+                _latencyMs = resultat.LatencyMs;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // bruger navigerede væk eller startede ny check — ignorér
+        }
+        catch (OrdbogenApiException ex)
+        {
+            _fejlbesked = ex.Message;
+            Log.LogWarning(ex, "Skrivecoach-kald fejlede");
+        }
+        catch (Exception ex)
+        {
+            _fejlbesked = "Uventet fejl: " + ex.Message;
+            Log.LogError(ex, "Uventet fejl ved skrivecoach-kald");
+        }
+        finally
+        {
+            _isChecking = false;
+        }
+    }
+
+    // --- Stavning / grammatik ---
+
+    private void AnvendCorrection(int index)
+    {
+        if (_corrections is null || index < 0 || index >= _corrections.Count) return;
+        var c = _corrections[index];
+
+        var (start, end) = LokaliserOriginal(c);
+        if (start < 0)
+        {
+            _fejlbesked = $"Kunne ikke finde \"{c.Original}\" i teksten — rettelsen blev ikke anvendt.";
+            return;
+        }
+
+        _tekst = _tekst[..start] + c.Suggested + _tekst[end..];
+        // Offsets på resterende corrections er nu inkonsistente — gå tilbage til redigerings-mode
+        // og lad brugeren tjekke igen for at få nye offsets.
+        _corrections = null;
+        _latencyMs = null;
+        _usage = null;
+        _fejlbesked = null;
+    }
+
+    private void AnvendAlleCorrections()
+    {
+        if (_corrections is null || _corrections.Count == 0) return;
+
+        var lokaliseret = _corrections
+            .Select(c => (c, span: LokaliserOriginal(c)))
+            .Where(t => t.span.start >= 0)
+            .OrderByDescending(t => t.span.start)
+            .ToList();
+
+        var droppet = _corrections.Count - lokaliseret.Count;
+
+        var sb = new System.Text.StringBuilder(_tekst);
+        foreach (var (c, (start, end)) in lokaliseret)
+        {
+            if (end > sb.Length) continue;
+            sb.Remove(start, end - start);
+            sb.Insert(start, c.Suggested);
+        }
+        _tekst = sb.ToString();
+        _corrections = null;
+        _latencyMs = null;
+        _usage = null;
+        _fejlbesked = droppet > 0
+            ? $"{droppet} rettelse{(droppet == 1 ? "" : "r")} kunne ikke lokaliseres og blev sprunget over."
+            : null;
+    }
+
+    private void IgnorerCorrection(int index)
+    {
+        if (_corrections is null || index < 0 || index >= _corrections.Count) return;
+        _corrections.RemoveAt(index);
+    }
+
+    private (int start, int end) LokaliserOriginal(Correction c)
+    {
+        if (string.IsNullOrEmpty(c.Original)) return (-1, -1);
+
+        if (c.Start >= 0 && c.End <= _tekst.Length && c.Start < c.End
+            && _tekst.AsSpan(c.Start, c.End - c.Start).SequenceEqual(c.Original))
+        {
+            return (c.Start, c.End);
+        }
+
+        var first = _tekst.IndexOf(c.Original, StringComparison.Ordinal);
+        if (first < 0) return (-1, -1);
+
+        var bestPos = first;
+        var bestDist = Math.Abs(first - c.Start);
+        var pos = first;
+        while ((pos = _tekst.IndexOf(c.Original, pos + 1, StringComparison.Ordinal)) >= 0)
+        {
+            var dist = Math.Abs(pos - c.Start);
+            if (dist < bestDist) { bestDist = dist; bestPos = pos; }
+        }
+        return (bestPos, bestPos + c.Original.Length);
+    }
+
+    // --- Forbedringer ---
+
+    private void AnvendForbedring(int index)
+    {
+        if (_forbedringer is null || index < 0 || index >= _forbedringer.Count) return;
+        var f = _forbedringer[index];
+        if (f.ParagraphIndex < 0 || f.ParagraphIndex >= _afsnit.Length) return;
+
+        _afsnit[f.ParagraphIndex] = f.Suggested;
+        _tekst = string.Join("\n\n", _afsnit);
+        _forbedringer.RemoveAt(index);
+        _fejlbesked = null;
+    }
+
+    private void AnvendAlleForbedringer()
+    {
+        if (_forbedringer is null || _forbedringer.Count == 0) return;
+
+        foreach (var f in _forbedringer)
+        {
+            if (f.ParagraphIndex >= 0 && f.ParagraphIndex < _afsnit.Length)
+            {
+                _afsnit[f.ParagraphIndex] = f.Suggested;
+            }
+        }
+        _tekst = string.Join("\n\n", _afsnit);
+        _forbedringer = null;
+        _latencyMs = null;
+        _usage = null;
+        _fejlbesked = null;
+    }
+
+    private void IgnorerForbedring(int index)
+    {
+        if (_forbedringer is null || index < 0 || index >= _forbedringer.Count) return;
+        _forbedringer.RemoveAt(index);
+    }
+
+    // --- Fælles ---
+
+    private void Rediger()
+    {
+        _corrections = null;
+        _forbedringer = null;
+        _afsnit = Array.Empty<string>();
+        _latencyMs = null;
+        _usage = null;
+    }
+
+    private void Ryd()
+    {
+        _tekst = string.Empty;
+        _corrections = null;
+        _forbedringer = null;
+        _afsnit = Array.Empty<string>();
+        _fejlbesked = null;
+        _latencyMs = null;
+        _usage = null;
+    }
+
+    private void IndsætEksempel()
+    {
+        _tekst = _mode == CoachMode.Stavning ? EksempelStavning : EksempelForbedringer;
+    }
+
+    private static string CssClassFor(Correction c) => c.ParsedType switch
+    {
+        CorrectionType.Stavning => "type-stavning",
+        CorrectionType.Grammatik => "type-grammatik",
+        CorrectionType.Stil => "type-stil",
+        _ => "type-stil"
+    };
+
+    private static string LabelFor(Correction c) => c.ParsedType switch
+    {
+        CorrectionType.Stavning => "Stavning",
+        CorrectionType.Grammatik => "Grammatik",
+        CorrectionType.Stil => "Stil",
+        _ => c.Type
+    };
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

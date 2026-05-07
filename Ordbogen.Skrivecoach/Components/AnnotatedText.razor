@@ -1,0 +1,64 @@
+@using Ordbogen.Skrivecoach.Models
+
+<div class="annotated-text">
+    @foreach (var segment in BuildSegments())
+    {
+        if (segment.Correction is null)
+        {
+            @segment.Text
+        }
+        else
+        {
+            <mark class="@CssClassFor(segment.Correction)"
+                  title="@segment.Correction.Explanation">@segment.Text</mark>
+        }
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<Correction> Corrections { get; set; } = Array.Empty<Correction>();
+
+    private record struct Segment(string Text, Correction? Correction);
+
+    private IEnumerable<Segment> BuildSegments()
+    {
+        if (string.IsNullOrEmpty(Text))
+        {
+            yield break;
+        }
+
+        var sorted = Corrections
+            .Where(c => c.Start >= 0 && c.End <= Text.Length && c.Start < c.End)
+            .OrderBy(c => c.Start)
+            .ToList();
+
+        var cursor = 0;
+        foreach (var c in sorted)
+        {
+            if (c.Start < cursor)
+            {
+                continue; // overlap — skip to keep rendering linear
+            }
+            if (c.Start > cursor)
+            {
+                yield return new Segment(Text[cursor..c.Start], null);
+            }
+            yield return new Segment(Text[c.Start..c.End], c);
+            cursor = c.End;
+        }
+
+        if (cursor < Text.Length)
+        {
+            yield return new Segment(Text[cursor..], null);
+        }
+    }
+
+    private static string CssClassFor(Correction c) => c.ParsedType switch
+    {
+        CorrectionType.Stavning => "mark-stavning",
+        CorrectionType.Grammatik => "mark-grammatik",
+        CorrectionType.Stil => "mark-stil",
+        _ => "mark-stil"
+    };
+}
