@@ -169,6 +169,79 @@ h1:focus {
     .skrivekompasset-layout {
         grid-template-columns: 1fr;
     }
+
+    .sidepanel {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
+}
+
+@media (max-width: 640px) {
+    .skrivekompasset {
+        padding: .75rem 0 1.5rem;
+    }
+
+    .skrivekompasset-header h1 {
+        font-size: 1.4rem;
+    }
+
+    .skrivekompasset-header .lead {
+        font-size: .92rem;
+        margin-bottom: 1rem;
+    }
+
+    .mode-toggle {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .mode-tab {
+        flex: 1 1 calc(50% - 4px);
+        box-sizing: border-box;
+        padding: .55rem .5rem;
+        font-size: .85rem;
+        text-align: center;
+    }
+
+    .klassetrin-vaelger {
+        flex-wrap: wrap;
+        gap: .4rem;
+    }
+
+    .editor-input {
+        min-height: 240px;
+    }
+
+    .readonly-text,
+    .annotated-text,
+    .paragraph-view {
+        min-height: 220px;
+        padding: .8rem .9rem;
+    }
+
+    .editor-actions {
+        gap: .4rem;
+    }
+
+    .editor-actions .btn-link {
+        margin-left: 0;
+    }
+
+    .laerer-actions {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .skrivekompasset-footer {
+        font-size: .8rem;
+    }
+
+    .patience-note {
+        font-size: .85em;
+    }
 }
 
 .editor-pane {
