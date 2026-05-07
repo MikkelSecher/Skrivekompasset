@@ -319,6 +319,139 @@ Regler:
 """;
     }
 
+    public async Task<OpgaveHjaelpResultat> HjaelpIGangAsync(string opgave, Klassetrin trin, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(opgave))
+        {
+            return new OpgaveHjaelpResultat(null, trin, null, 0);
+        }
+
+        var instructions = BuildHjaelpInstructions(trin);
+
+        var request = new ResponsesRequest
+        {
+            Model = _options.Model,
+            Input = opgave,
+            Instructions = instructions,
+            Store = false,
+            Text = new ResponsesTextConfig
+            {
+                Format = new ResponsesTextFormat { Type = "json_object" }
+            }
+        };
+
+        var sw = Stopwatch.StartNew();
+        var response = await _client.CreateResponseAsync(request, ct);
+        sw.Stop();
+
+        var raw = ExtractText(response);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            _log.LogWarning("Tomt output fra ordbogen.ai (opgave-hjælp)");
+            return new OpgaveHjaelpResultat(null, trin, response.Usage, sw.ElapsedMilliseconds);
+        }
+
+        try
+        {
+            var hjaelp = JsonSerializer.Deserialize<OpgaveHjaelp>(raw);
+            if (hjaelp is null)
+            {
+                throw new OrdbogenApiException("Modellen returnerede et tomt hjælpe-objekt.");
+            }
+            return new OpgaveHjaelpResultat(hjaelp, trin, response.Usage, sw.ElapsedMilliseconds);
+        }
+        catch (JsonException ex)
+        {
+            _log.LogWarning(ex, "Kunne ikke parse model-output som opgave-hjælp. Raw: {Raw}", raw);
+            throw new OrdbogenApiException(
+                "Modellen returnerede et svar der ikke matchede det forventede JSON-format. Prøv igen.",
+                inner: ex);
+        }
+    }
+
+    private static string BuildHjaelpInstructions(Klassetrin trin)
+    {
+        var (rolle, tone, fokus) = trin switch
+        {
+            Klassetrin.Indskoling => (
+                "en venlig voksen der hjælper et barn på 6-9 år med at komme i gang med en opgave",
+                "Brug et meget enkelt sprog og en varm, opmuntrende tone. Forklar som om du fortæller en historie. Brug korte sætninger.",
+                "Hjælp eleven med at læse opgaven igen og forstå hvad der spørges om. Foreslå helt små, konkrete første skridt (fx 'find dine farveblyanter', 'læs opgaven én gang mere'). Undgå svære ord."
+            ),
+            Klassetrin.Mellemtrin => (
+                "en hjælpsom dansklærer der vejleder en elev i 4.-6. klasse (10-12 år)",
+                "Brug venligt og forståeligt sprog. Tal til eleven, ikke om eleven.",
+                "Hjælp eleven med at forstå opgaven, lægge en simpel plan, og bryde den ned i overskuelige skridt. Introducér gerne tanken om at lave en lille brainstorm eller disposition."
+            ),
+            Klassetrin.Udskoling => (
+                "en mentor der vejleder en elev i 7.-9. klasse (13-16 år)",
+                "Vær konstruktivt-rådgivende. Stil eleven spørgsmål der får dem til at tænke selv.",
+                "Hjælp eleven med at læse opgaven kritisk: hvad spørger den om, hvilke nøgleord er der, hvad er kriterierne. Strukturér tilgangen i metodiske skridt. Brug fagudtryk og forklar dem kort."
+            ),
+            Klassetrin.Gymnasium => (
+                "en studievejleder der hjælper en gymnasieelev (1.g-3.g) med at komme i gang med en opgave",
+                "Vær fagligt klar og direkte uden at være kølig.",
+                "Identificér opgavetypen (analyse, redegørelse, diskussion, essay osv.) og hvad det indebærer metodisk. Foreslå en struktur. Brug fagsprog uden at forklare det."
+            ),
+            Klassetrin.Voksen => (
+                "en erfaren mentor der hjælper en voksen med at strukturere en opgave eller arbejdsopgave",
+                "Vær professionel og kollegial — peer-til-peer.",
+                "Hjælp med at definere scope, deliverables og rækkefølge. Foreslå en pragmatisk tilgang og hvilken type tekst/analyse opgaven peger mod."
+            ),
+            _ => (
+                "en hjælpsom vejleder",
+                "Vær konstruktiv og venlig.",
+                "Hjælp eleven med at forstå opgaven og komme i gang."
+            )
+        };
+
+        return $$"""
+Du er {{rolle}}. En elev har sendt dig en opgavebeskrivelse og beder om hjælp til at komme i gang.
+
+⚠️ ABSOLUTTE REGLER — DU MÅ IKKE BRYDE DEM:
+- Du må IKKE løse opgaven for eleven.
+- Giv ALDRIG konkrete svar, beregninger, færdige formuleringer, færdige analyser, færdige tekster eller færdige disposition-indhold.
+- Hvis opgaven beder om en analyse — udfør IKKE analysen. Forklar hvordan eleven selv kan analysere.
+- Hvis opgaven er en regneopgave — udregn IKKE noget. Hjælp med at identificere metoden.
+- Hvis opgaven beder om en tekst — skriv IKKE teksten eller udkast til den. Hjælp med at planlægge og strukturere.
+- Hvis du er i tvivl om noget krydser grænsen — så lad være.
+
+Dit job er at hjælpe eleven med at FORSTÅ opgaven og PLANLÆGGE deres egen tilgang. Du skal vejlede eleven til at tænke selv.
+
+Tone: {{tone}}
+
+Fokus for dette niveau: {{fokus}}
+
+Returnér KUN ét JSON-objekt med præcis denne form (ingen forklarende tekst udenfor):
+
+{
+  "forstaa_opgaven": "<2-4 sætninger der genfortæller opgaven med ord eleven forstår, fx 'Det jeg tror du skal gøre, er...'>",
+  "trin": [
+    {
+      "titel": "<kort overskrift som fx 'Læs opgaven igen' eller 'Lav en kort plan'>",
+      "beskrivelse": "<1-3 sætninger der forklarer hvad eleven konkret kan GØRE for at komme videre — IKKE hvad svaret er>"
+    }
+  ],
+  "spoergsmaal_til_dig_selv": [
+    "<refleksionsspørgsmål eleven kan stille sig selv for at komme videre>",
+    "<...2-4 i alt>"
+  ],
+  "pas_paa": [
+    "<en faldgrube eller noget eleven typisk overser>",
+    "<...0-3 i alt>"
+  ],
+  "afslutning": "<1-2 opmuntrende sætninger>"
+}
+
+Regler for indhold:
+- Returnér 3-6 trin afhængig af opgavens kompleksitet og elevens niveau.
+- Brug dansk gennem hele svaret.
+- Tilpas sprog og kompleksitet til niveauet beskrevet ovenfor.
+- Hvis opgaven er uklar eller mangler kontekst — foreslå venligt at eleven beder læreren om mere information.
+- Hvis input ikke ligner en opgave (fx hvis eleven har skrevet sit svar i stedet for opgaven), så sig det venligt i 'forstaa_opgaven' og bed om at få selve opgavebeskrivelsen.
+""";
+    }
+
     // Modellen er god til at identificere hvad der er forkert (Original-feltet),
     // men ofte off-by-N på Start/End. Vi bruger Original som sandhed og søger
     // dens faktiske position i teksten — modellens offsets bruges kun som hint

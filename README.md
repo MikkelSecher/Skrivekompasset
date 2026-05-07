@@ -7,10 +7,11 @@ App'et bygger på ordbogen.ai's `POST /v1/responses`-endpoint (en OpenAI-style R
 ## Indhold
 
 - [Sådan kommer du i gang](#sådan-kommer-du-i-gang)
-- [De tre funktioner](#de-tre-funktioner)
+- [De fire funktioner](#de-fire-funktioner)
   - [1. Stavning & grammatik](#1-stavning--grammatik)
   - [2. Forbedringsforslag](#2-forbedringsforslag)
   - [3. Lærer-feedback](#3-lærer-feedback)
+  - [4. Hjælp i gang](#4-hjælp-i-gang)
 - [Arkitektur](#arkitektur)
 - [Filstruktur](#filstruktur)
 - [Kendte forbehold](#kendte-forbehold)
@@ -46,7 +47,7 @@ dotnet run --launch-profile https
 
 I produktion bruges miljøvariablen `Ordbogen__ApiKey` (dobbelt underscore = `:` i config-keys).
 
-## De tre funktioner
+## De fire funktioner
 
 App'en har en mode-toggle øverst hvor du vælger mellem de tre funktioner. Tilstanden nulstilles når du skifter mode, så du kan eksperimentere med samme tekst på tværs af modes.
 
@@ -196,6 +197,58 @@ Prompten bygges dynamisk i [`SkrivecoachService.BuildLaererInstructions`](Ordbog
 }
 ```
 
+### 4. Hjælp i gang
+
+**Hvad det gør:** Eleven indsætter en *opgavebeskrivelse* (ikke deres svar), og får en trin-tilpasset guide til at komme i gang. Modellen er instrueret meget strengt om **ikke** at løse opgaven — den må kun hjælpe eleven med at forstå opgaven og planlægge deres egen tilgang. Det er en bedre måde at bede om hjælp på end "skriv det for mig".
+
+Bruger samme `Klassetrin`-enum som lærer-feedback, så samme dropdown styrer begge funktioner.
+
+**Sådan bruges det:**
+1. Vælg klassetrin.
+2. Indsæt opgavebeskrivelsen — fx "Skriv en kort tekst på 250-400 ord om en oplevelse fra din sommerferie. Brug mindst tre sansebeskrivelser..."
+3. Klik **Hjælp mig i gang**.
+4. Sidepanelet viser fem sektioner: Sådan forstår jeg opgaven, Trin du kan tage, Spørgsmål til dig selv, Pas på, og en opmuntrende afslutning.
+
+**Hvilket API-kald:** `POST /v1/responses`
+
+```jsonc
+{
+  "model": "odin-large",
+  "input": "<opgavebeskrivelsen>",
+  "instructions": "Du er en mentor der vejleder en elev ... ABSOLUTTE REGLER: Du må IKKE løse opgaven for eleven ...",
+  "store": false,
+  "text": { "format": { "type": "json_object" } }
+}
+```
+
+System-prompten ([`SkrivecoachService.BuildHjaelpInstructions`](Ordbogen.Skrivecoach/Services/SkrivecoachService.cs)) varierer rolle, tone og fokus efter klassetrin, men holder den hårde regel konstant: ingen konkrete svar, ingen beregninger, ingen færdige tekster eller analyser.
+
+**Forventet svar:**
+
+```json
+{
+  "forstaa_opgaven": "Det jeg tror du skal gøre, er at fortælle om en oplevelse fra din sommerferie ...",
+  "trin": [
+    {
+      "titel": "Læs opgaven igen",
+      "beskrivelse": "Streg ord under som 'sansebeskrivelser' og '250-400 ord' så du husker kravene."
+    },
+    {
+      "titel": "Vælg én oplevelse",
+      "beskrivelse": "Tænk på en sommerferie-oplevelse hvor du kan huske mange detaljer ..."
+    }
+  ],
+  "spoergsmaal_til_dig_selv": [
+    "Hvilken oplevelse husker jeg flest detaljer fra?",
+    "Hvilke sanser brugte jeg under den oplevelse?"
+  ],
+  "pas_paa": [
+    "Det er nemt at bruge for mange korte sætninger — øv dig i at variere længden."
+  ],
+  "afslutning": "Du har god tid — gå roligt i gang med trin 1, så hjælper det resten på vej."
+}
+```
+
 ## Arkitektur
 
 ```
@@ -232,11 +285,12 @@ Ordbogen.Skrivecoach/
 │   ├── ResponsesDtos.cs                  DTO'er for ordbogen.ai's request/response
 │   ├── Correction.cs                     Stave-/grammatik-rettelse + payload
 │   ├── Forbedring.cs                     Afsnits-forbedring + payload
-│   └── LaererFeedback.cs                 Lærer-feedback-rapport + Klassetrin enum
+│   ├── LaererFeedback.cs                 Lærer-feedback-rapport + Klassetrin enum
+│   └── OpgaveHjaelp.cs                   "Hjælp i gang"-guide + payload
 ├── Services/
 │   ├── OrdbogenClient.cs                 HTTP-kald til POST /responses
 │   ├── OrdbogenApiException.cs           Domæne-specifik exception
-│   └── SkrivecoachService.cs             Tre prompt-flows + parsing
+│   └── SkrivecoachService.cs             Fire prompt-flows + parsing
 ├── Components/
 │   ├── AnnotatedText.razor               Renderer tekst med <mark>-spans
 │   ├── Layout/

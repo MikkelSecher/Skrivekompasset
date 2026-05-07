@@ -634,3 +634,87 @@ h1:focus {
     justify-content: flex-end;
     gap: .5rem;
 }
+
+/* Opgave-hjælp */
+
+.opgave-hjaelp {
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+}
+
+.laerer-section.forstaa {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    color: #1e3a8a;
+}
+
+.laerer-section.forstaa p {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.laerer-section.trin-section {
+    background: #fafafa;
+    border-color: #d4d4d8;
+}
+
+.trin-list {
+    margin: 0;
+    padding-left: 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: .65rem;
+}
+
+.trin {
+    padding-left: .25rem;
+}
+
+.trin-titel {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: .92rem;
+    margin-bottom: .15rem;
+}
+
+.trin-beskrivelse {
+    margin: 0;
+    color: #475569;
+    font-size: .88rem;
+    line-height: 1.45;
+}
+
+.laerer-section.spoergsmaal-section {
+    background: #f5f3ff;
+    border-color: #ddd6fe;
+}
+
+.spoergsmaal-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #4c1d95;
+    line-height: 1.55;
+    font-size: .9rem;
+}
+
+.spoergsmaal-list li {
+    margin-bottom: .35rem;
+}
+
+.laerer-section.pas-paa-section {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.pas-paa-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #991b1b;
+    line-height: 1.45;
+    font-size: .88rem;
+}
+
+.pas-paa-list li {
+    margin-bottom: .3rem;
+}

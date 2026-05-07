@@ -36,9 +36,16 @@
                 @onclick="() => SetMode(CoachMode.Laerer)">
             Lærer-feedback
         </button>
+        <button class="mode-tab @(_mode == CoachMode.Hjaelp ? "active" : "")"
+                role="tab"
+                aria-selected="@(_mode == CoachMode.Hjaelp)"
+                disabled="@_isChecking"
+                @onclick="() => SetMode(CoachMode.Hjaelp)">
+            Hjælp i gang
+        </button>
     </div>
 
-    @if (_mode == CoachMode.Laerer)
+    @if (_mode == CoachMode.Laerer || _mode == CoachMode.Hjaelp)
     {
         <div class="klassetrin-vaelger">
             <label for="klassetrin">Klassetrin:</label>
@@ -60,7 +67,7 @@
             @if (!HarResultat)
             {
                 <textarea class="editor-input"
-                          @bind="_tekst"
+                          @bind="CurrentInput"
                           @bind:event="oninput"
                           placeholder="@PlaceholderText"
                           rows="14"
@@ -91,11 +98,15 @@
             {
                 <div class="readonly-text">@_tekst</div>
             }
+            else if (_mode == CoachMode.Hjaelp && _opgaveHjaelp is not null)
+            {
+                <div class="readonly-text">@_hjaelpTekst</div>
+            }
 
             <div class="editor-actions">
                 @if (!HarResultat)
                 {
-                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(_tekst))">
+                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(CurrentInput))">
                         @if (_isChecking)
                         {
                             <span class="spinner"></span>
@@ -178,6 +189,64 @@
                         }
                     </ul>
                 }
+            }
+            else if (_mode == CoachMode.Hjaelp && _opgaveHjaelp is not null)
+            {
+                <div class="opgave-hjaelp">
+                    <div class="laerer-header">
+                        <span class="badge">@KlassetrinLabel(_klassetrin)</span>
+                    </div>
+                    <section class="laerer-section forstaa">
+                        <h4>📖 Sådan forstår jeg opgaven</h4>
+                        <p>@_opgaveHjaelp.ForstaaOpgaven</p>
+                    </section>
+                    @if (_opgaveHjaelp.Trin is { Count: > 0 })
+                    {
+                        <section class="laerer-section trin-section">
+                            <h4>🪜 Trin du kan tage</h4>
+                            <ol class="trin-list">
+                                @foreach (var t in _opgaveHjaelp.Trin)
+                                {
+                                    <li class="trin">
+                                        <div class="trin-titel">@t.Titel</div>
+                                        <p class="trin-beskrivelse">@t.Beskrivelse</p>
+                                    </li>
+                                }
+                            </ol>
+                        </section>
+                    }
+                    @if (_opgaveHjaelp.SpoergsmaalTilDigSelv is { Count: > 0 })
+                    {
+                        <section class="laerer-section spoergsmaal-section">
+                            <h4>🤔 Spørgsmål du kan stille dig selv</h4>
+                            <ul class="spoergsmaal-list">
+                                @foreach (var s in _opgaveHjaelp.SpoergsmaalTilDigSelv)
+                                {
+                                    <li>@s</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                    @if (_opgaveHjaelp.PasPaa is { Count: > 0 })
+                    {
+                        <section class="laerer-section pas-paa-section">
+                            <h4>⚠️ Pas på</h4>
+                            <ul class="pas-paa-list">
+                                @foreach (var p in _opgaveHjaelp.PasPaa)
+                                {
+                                    <li>@p</li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(_opgaveHjaelp.Afslutning))
+                    {
+                        <p class="laerer-samlet">@_opgaveHjaelp.Afslutning</p>
+                    }
+                    <div class="laerer-actions">
+                        <button class="btn-secondary" @onclick="Rediger">Rediger opgave</button>
+                    </div>
+                </div>
             }
             else if (_mode == CoachMode.Laerer && _laererFeedback is not null)
             {
@@ -290,30 +359,78 @@
 </div>
 
 @code {
-    public enum CoachMode { Stavning, Forbedringer, Laerer }
+    public enum CoachMode { Stavning, Forbedringer, Laerer, Hjaelp }
 
     private CoachMode _mode = CoachMode.Stavning;
     private Klassetrin _klassetrin = Klassetrin.Mellemtrin;
+
+    // S/F/L deler input (de arbejder alle på samme tekst). Hjælp har sin egen — det er en opgavebeskrivelse, ikke skribentens tekst.
     private string _tekst = string.Empty;
+    private string _hjaelpTekst = string.Empty;
 
     private List<Correction>? _corrections;
     private List<Forbedring>? _forbedringer;
     private LaererFeedback? _laererFeedback;
+    private OpgaveHjaelp? _opgaveHjaelp;
     private string[] _afsnit = Array.Empty<string>();
+
+    // Per-mode metadata. Hjælp's persisterer på tværs af mode-skift; de andre nulstilles når man skifter væk.
+    private long? _stavningLatencyMs;
+    private ResponsesUsage? _stavningUsage;
+    private long? _forbedringerLatencyMs;
+    private ResponsesUsage? _forbedringerUsage;
+    private long? _laererLatencyMs;
+    private ResponsesUsage? _laererUsage;
+    private long? _hjaelpLatencyMs;
+    private ResponsesUsage? _hjaelpUsage;
 
     private bool _isChecking;
     private string? _fejlbesked;
-    private long? _latencyMs;
-    private ResponsesUsage? _usage;
     private CancellationTokenSource? _cts;
 
-    private bool HarResultat => _corrections is not null || _forbedringer is not null || _laererFeedback is not null;
+    private string CurrentInput
+    {
+        get => _mode == CoachMode.Hjaelp ? _hjaelpTekst : _tekst;
+        set
+        {
+            if (_mode == CoachMode.Hjaelp) _hjaelpTekst = value;
+            else _tekst = value;
+        }
+    }
+
+    private long? _latencyMs => _mode switch
+    {
+        CoachMode.Stavning => _stavningLatencyMs,
+        CoachMode.Forbedringer => _forbedringerLatencyMs,
+        CoachMode.Laerer => _laererLatencyMs,
+        CoachMode.Hjaelp => _hjaelpLatencyMs,
+        _ => null
+    };
+
+    private ResponsesUsage? _usage => _mode switch
+    {
+        CoachMode.Stavning => _stavningUsage,
+        CoachMode.Forbedringer => _forbedringerUsage,
+        CoachMode.Laerer => _laererUsage,
+        CoachMode.Hjaelp => _hjaelpUsage,
+        _ => null
+    };
+
+    private bool HarResultat => _mode switch
+    {
+        CoachMode.Stavning => _corrections is not null,
+        CoachMode.Forbedringer => _forbedringer is not null,
+        CoachMode.Laerer => _laererFeedback is not null,
+        CoachMode.Hjaelp => _opgaveHjaelp is not null,
+        _ => false
+    };
 
     private string LeadText => _mode switch
     {
         CoachMode.Stavning => "Indsæt en tekst og lad ordbogen.ai finde stave-, grammatik- og stilfejl.",
         CoachMode.Forbedringer => "Indsæt en tekst og få forslag til hvordan hvert afsnit kan blive skarpere.",
         CoachMode.Laerer => "Indsæt en tekst og få pædagogisk tilbagemelding tilpasset klassetrinnet.",
+        CoachMode.Hjaelp => "Indsæt en opgave og få en guide til at komme i gang — uden at få svaret.",
         _ => string.Empty
     };
 
@@ -322,6 +439,7 @@
         CoachMode.Stavning => "Indsæt eller skriv din danske tekst her...",
         CoachMode.Forbedringer => "Indsæt en tekst med flere afsnit (adskilt af blanke linjer)...",
         CoachMode.Laerer => "Indsæt elevens tekst her...",
+        CoachMode.Hjaelp => "Paste opgavebeskrivelsen her — ikke dit svar...",
         _ => string.Empty
     };
 
@@ -330,6 +448,7 @@
         CoachMode.Stavning => "Tryk Tjek tekst for at få feedback på stave-, grammatik- og stilfejl.",
         CoachMode.Forbedringer => "Tryk Foreslå forbedringer for at få omformuleringer pr. afsnit.",
         CoachMode.Laerer => "Vælg klassetrin og tryk Hent feedback for at få en lærerlignende tilbagemelding.",
+        CoachMode.Hjaelp => "Vælg klassetrin og tryk Hjælp mig i gang for at få en guide.",
         _ => string.Empty
     };
 
@@ -338,6 +457,7 @@
         CoachMode.Stavning => "Tjek tekst",
         CoachMode.Forbedringer => "Foreslå forbedringer",
         CoachMode.Laerer => "Hent feedback",
+        CoachMode.Hjaelp => "Hjælp mig i gang",
         _ => "Tjek"
     };
 
@@ -346,6 +466,7 @@
         CoachMode.Stavning => "Tjekker...",
         CoachMode.Forbedringer => "Analyserer...",
         CoachMode.Laerer => "Bedømmer...",
+        CoachMode.Hjaelp => "Tænker...",
         _ => "Arbejder..."
     };
 
@@ -354,6 +475,7 @@
         CoachMode.Stavning => "Tjekket",
         CoachMode.Forbedringer => "Analyseret",
         CoachMode.Laerer => "Bedømt",
+        CoachMode.Hjaelp => "Klar",
         _ => "Færdig"
     };
 
@@ -373,17 +495,40 @@
         "Min lillebror byggede et stort sandslot. Det væltede da en bølge kom. " +
         "Min mor og far læste bøger. Jeg legede med min ven Mads.";
 
+    private const string EksempelHjaelp =
+        "Skriv en kort tekst på 250-400 ord om en oplevelse fra din sommerferie. " +
+        "Teksten skal indeholde mindst tre forskellige sansebeskrivelser (fx hvad du så, " +
+        "hørte eller smagte) og bruge mindst to forskellige tider (datid og førnutid). " +
+        "Husk afsnit og en klar afslutning.";
+
     private void SetMode(CoachMode mode)
     {
         if (_mode == mode || _isChecking) return;
+
+        // S/F/L har "fresh start" pr. mode-skift — eksisterende adfærd, og rimeligt
+        // fordi de tre deler input og deres resultater bliver stale ved tekst-ændringer.
+        // Hjælp er undtagelsen: dens input og resultat bevares så man kan vende tilbage.
+        if (_mode != CoachMode.Hjaelp)
+        {
+            ClearSharedModesState();
+        }
+
         _mode = mode;
+        _fejlbesked = null;
+    }
+
+    private void ClearSharedModesState()
+    {
         _corrections = null;
         _forbedringer = null;
         _laererFeedback = null;
         _afsnit = Array.Empty<string>();
-        _latencyMs = null;
-        _usage = null;
-        _fejlbesked = null;
+        _stavningLatencyMs = null;
+        _stavningUsage = null;
+        _forbedringerLatencyMs = null;
+        _forbedringerUsage = null;
+        _laererLatencyMs = null;
+        _laererUsage = null;
     }
 
     private async Task TjekAsync()
@@ -399,29 +544,30 @@
             {
                 var resultat = await Skrivecoach.TjekTekstAsync(_tekst, _cts.Token);
                 _corrections = resultat.Corrections.ToList();
-                _forbedringer = null;
-                _laererFeedback = null;
-                _usage = resultat.Usage;
-                _latencyMs = resultat.LatencyMs;
+                _stavningLatencyMs = resultat.LatencyMs;
+                _stavningUsage = resultat.Usage;
             }
             else if (_mode == CoachMode.Forbedringer)
             {
                 var resultat = await Skrivecoach.ForbedrTekstAsync(_tekst, _cts.Token);
                 _forbedringer = resultat.Forbedringer.ToList();
                 _afsnit = resultat.Afsnit.ToArray();
-                _corrections = null;
-                _laererFeedback = null;
-                _usage = resultat.Usage;
-                _latencyMs = resultat.LatencyMs;
+                _forbedringerLatencyMs = resultat.LatencyMs;
+                _forbedringerUsage = resultat.Usage;
             }
             else if (_mode == CoachMode.Laerer)
             {
                 var resultat = await Skrivecoach.LaererFeedbackAsync(_tekst, _klassetrin, _cts.Token);
                 _laererFeedback = resultat.Feedback;
-                _corrections = null;
-                _forbedringer = null;
-                _usage = resultat.Usage;
-                _latencyMs = resultat.LatencyMs;
+                _laererLatencyMs = resultat.LatencyMs;
+                _laererUsage = resultat.Usage;
+            }
+            else if (_mode == CoachMode.Hjaelp)
+            {
+                var resultat = await Skrivecoach.HjaelpIGangAsync(_hjaelpTekst, _klassetrin, _cts.Token);
+                _opgaveHjaelp = resultat.Hjaelp;
+                _hjaelpLatencyMs = resultat.LatencyMs;
+                _hjaelpUsage = resultat.Usage;
             }
         }
         catch (OperationCanceledException)
@@ -462,8 +608,8 @@
         // Offsets på resterende corrections er nu inkonsistente — gå tilbage til redigerings-mode
         // og lad brugeren tjekke igen for at få nye offsets.
         _corrections = null;
-        _latencyMs = null;
-        _usage = null;
+        _stavningLatencyMs = null;
+        _stavningUsage = null;
         _fejlbesked = null;
     }
 
@@ -488,8 +634,8 @@
         }
         _tekst = sb.ToString();
         _corrections = null;
-        _latencyMs = null;
-        _usage = null;
+        _stavningLatencyMs = null;
+        _stavningUsage = null;
         _fejlbesked = droppet > 0
             ? $"{droppet} rettelse{(droppet == 1 ? "" : "r")} kunne ikke lokaliseres og blev sprunget over."
             : null;
@@ -552,8 +698,8 @@
         }
         _tekst = string.Join("\n\n", _afsnit);
         _forbedringer = null;
-        _latencyMs = null;
-        _usage = null;
+        _forbedringerLatencyMs = null;
+        _forbedringerUsage = null;
         _fejlbesked = null;
     }
 
@@ -567,35 +713,64 @@
 
     private void Rediger()
     {
-        _corrections = null;
-        _forbedringer = null;
-        _laererFeedback = null;
-        _afsnit = Array.Empty<string>();
-        _latencyMs = null;
-        _usage = null;
+        // Ryd kun det aktuelle modes resultat så brugeren kan tilbage til input-feltet
+        // og evt. køre tjekket igen — andre modes' state forbliver urørt.
+        switch (_mode)
+        {
+            case CoachMode.Stavning:
+                _corrections = null;
+                _stavningLatencyMs = null;
+                _stavningUsage = null;
+                break;
+            case CoachMode.Forbedringer:
+                _forbedringer = null;
+                _afsnit = Array.Empty<string>();
+                _forbedringerLatencyMs = null;
+                _forbedringerUsage = null;
+                break;
+            case CoachMode.Laerer:
+                _laererFeedback = null;
+                _laererLatencyMs = null;
+                _laererUsage = null;
+                break;
+            case CoachMode.Hjaelp:
+                _opgaveHjaelp = null;
+                _hjaelpLatencyMs = null;
+                _hjaelpUsage = null;
+                break;
+        }
     }
 
     private void Ryd()
     {
-        _tekst = string.Empty;
-        _corrections = null;
-        _forbedringer = null;
-        _laererFeedback = null;
-        _afsnit = Array.Empty<string>();
+        if (_mode == CoachMode.Hjaelp)
+        {
+            _hjaelpTekst = string.Empty;
+            _opgaveHjaelp = null;
+            _hjaelpLatencyMs = null;
+            _hjaelpUsage = null;
+        }
+        else
+        {
+            // S/F/L deler input — at rydde teksten gør alle deres resultater stale
+            _tekst = string.Empty;
+            ClearSharedModesState();
+        }
         _fejlbesked = null;
-        _latencyMs = null;
-        _usage = null;
     }
 
     private void IndsætEksempel()
     {
-        _tekst = _mode switch
+        var eksempel = _mode switch
         {
             CoachMode.Stavning => EksempelStavning,
             CoachMode.Forbedringer => EksempelForbedringer,
             CoachMode.Laerer => EksempelLaerer,
+            CoachMode.Hjaelp => EksempelHjaelp,
             _ => EksempelStavning
         };
+        if (_mode == CoachMode.Hjaelp) _hjaelpTekst = eksempel;
+        else _tekst = eksempel;
     }
 
     private static string KlassetrinLabel(Klassetrin trin) => trin switch
