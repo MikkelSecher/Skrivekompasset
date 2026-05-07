@@ -115,6 +115,49 @@ h1:focus {
     cursor: not-allowed;
 }
 
+.klassetrin-vaelger {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    margin: 0 0 1rem;
+    font-size: .9rem;
+    color: #475569;
+}
+
+.klassetrin-vaelger label { font-weight: 500; }
+
+.klassetrin-select {
+    padding: .4rem .6rem;
+    font-size: .9rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: white;
+    color: #1e293b;
+    cursor: pointer;
+}
+
+.klassetrin-select:focus {
+    outline: none;
+    border-color: #1b6ec2;
+    box-shadow: 0 0 0 3px rgba(27,110,194,.15);
+}
+
+.klassetrin-select:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.readonly-text {
+    min-height: 320px;
+    padding: 1rem 1.25rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fafbfc;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
 .skrivecoach-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
@@ -468,4 +511,126 @@ h1:focus {
 .forbedring-text {
     white-space: pre-wrap;
     word-wrap: break-word;
+}
+
+/* Lærer-feedback */
+
+.laerer-feedback {
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+}
+
+.laerer-header {
+    margin-bottom: .25rem;
+}
+
+.laerer-section {
+    border-radius: 8px;
+    padding: .85rem 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.laerer-section h4 {
+    margin: 0 0 .5rem;
+    font-size: .95rem;
+    font-weight: 600;
+}
+
+.laerer-section.ros {
+    background: #ecfdf3;
+    border-color: #c7ebd2;
+    color: #14532d;
+}
+
+.laerer-section.ros p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.laerer-section.udfordringer {
+    background: #fff8e1;
+    border-color: #f7d37b;
+}
+
+.udfordring-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .7rem;
+}
+
+.udfordring {
+    background: white;
+    border: 1px solid #f7d37b;
+    border-radius: 6px;
+    padding: .55rem .7rem;
+}
+
+.udfordring-omraade {
+    font-weight: 600;
+    color: #92400e;
+    margin-bottom: .25rem;
+    font-size: .9rem;
+}
+
+.udfordring-kommentar {
+    margin: 0 0 .35rem;
+    font-size: .88rem;
+    line-height: 1.45;
+    color: #4b5563;
+}
+
+.udfordring-eksempel {
+    margin: .35rem 0;
+    padding: .35rem .6rem;
+    border-left: 3px solid #cbd5e1;
+    background: #f8fafc;
+    color: #475569;
+    font-size: .85rem;
+    font-style: italic;
+}
+
+.udfordring-forslag {
+    margin: .35rem 0 0;
+    font-size: .88rem;
+    line-height: 1.45;
+    color: #1f5e1f;
+}
+
+.laerer-section.skridt {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+}
+
+.skridt-list {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: #312e81;
+    line-height: 1.5;
+    font-size: .9rem;
+}
+
+.skridt-list li {
+    margin-bottom: .3rem;
+}
+
+.laerer-samlet {
+    margin: 0;
+    padding: .65rem .85rem;
+    background: #f8fafc;
+    border-left: 3px solid #1b6ec2;
+    color: #1e293b;
+    font-style: italic;
+    font-size: .9rem;
+    line-height: 1.5;
+    border-radius: 0 6px 6px 0;
+}
+
+.laerer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
 }

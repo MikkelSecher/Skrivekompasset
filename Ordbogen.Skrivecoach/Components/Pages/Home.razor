@@ -280,7 +280,7 @@
     @if (_latencyMs is not null)
     {
         <footer class="skrivecoach-footer">
-            @(_mode == CoachMode.Stavning ? "Tjekket" : "Analyseret") på @(_latencyMs)ms
+            @FooterVerb på @(_latencyMs)ms
             @if (_usage is not null)
             {
                 <span> · @_usage.TotalTokens tokens (@_usage.InputTokens ind / @_usage.OutputTokens ud)</span>
@@ -290,13 +290,15 @@
 </div>
 
 @code {
-    public enum CoachMode { Stavning, Forbedringer }
+    public enum CoachMode { Stavning, Forbedringer, Laerer }
 
     private CoachMode _mode = CoachMode.Stavning;
+    private Klassetrin _klassetrin = Klassetrin.Mellemtrin;
     private string _tekst = string.Empty;
 
     private List<Correction>? _corrections;
     private List<Forbedring>? _forbedringer;
+    private LaererFeedback? _laererFeedback;
     private string[] _afsnit = Array.Empty<string>();
 
     private bool _isChecking;
@@ -305,19 +307,55 @@
     private ResponsesUsage? _usage;
     private CancellationTokenSource? _cts;
 
-    private bool HarResultat => _corrections is not null || _forbedringer is not null;
+    private bool HarResultat => _corrections is not null || _forbedringer is not null || _laererFeedback is not null;
 
-    private string LeadText => _mode == CoachMode.Stavning
-        ? "Indsæt en tekst og lad ordbogen.ai finde stave-, grammatik- og stilfejl."
-        : "Indsæt en tekst og få forslag til hvordan hvert afsnit kan blive skarpere.";
+    private string LeadText => _mode switch
+    {
+        CoachMode.Stavning => "Indsæt en tekst og lad ordbogen.ai finde stave-, grammatik- og stilfejl.",
+        CoachMode.Forbedringer => "Indsæt en tekst og få forslag til hvordan hvert afsnit kan blive skarpere.",
+        CoachMode.Laerer => "Indsæt en tekst og få pædagogisk tilbagemelding tilpasset klassetrinnet.",
+        _ => string.Empty
+    };
 
-    private string PlaceholderText => _mode == CoachMode.Stavning
-        ? "Indsæt eller skriv din danske tekst her..."
-        : "Indsæt en tekst med flere afsnit (adskilt af blanke linjer)...";
+    private string PlaceholderText => _mode switch
+    {
+        CoachMode.Stavning => "Indsæt eller skriv din danske tekst her...",
+        CoachMode.Forbedringer => "Indsæt en tekst med flere afsnit (adskilt af blanke linjer)...",
+        CoachMode.Laerer => "Indsæt elevens tekst her...",
+        _ => string.Empty
+    };
 
-    private string SidepanelEmptyText => _mode == CoachMode.Stavning
-        ? "Tryk Tjek tekst for at få feedback på stave-, grammatik- og stilfejl."
-        : "Tryk Foreslå forbedringer for at få omformuleringer pr. afsnit.";
+    private string SidepanelEmptyText => _mode switch
+    {
+        CoachMode.Stavning => "Tryk Tjek tekst for at få feedback på stave-, grammatik- og stilfejl.",
+        CoachMode.Forbedringer => "Tryk Foreslå forbedringer for at få omformuleringer pr. afsnit.",
+        CoachMode.Laerer => "Vælg klassetrin og tryk Hent feedback for at få en lærerlignende tilbagemelding.",
+        _ => string.Empty
+    };
+
+    private string CheckButtonLabel => _mode switch
+    {
+        CoachMode.Stavning => "Tjek tekst",
+        CoachMode.Forbedringer => "Foreslå forbedringer",
+        CoachMode.Laerer => "Hent feedback",
+        _ => "Tjek"
+    };
+
+    private string CheckingLabel => _mode switch
+    {
+        CoachMode.Stavning => "Tjekker...",
+        CoachMode.Forbedringer => "Analyserer...",
+        CoachMode.Laerer => "Bedømmer...",
+        _ => "Arbejder..."
+    };
+
+    private string FooterVerb => _mode switch
+    {
+        CoachMode.Stavning => "Tjekket",
+        CoachMode.Forbedringer => "Analyseret",
+        CoachMode.Laerer => "Bedømt",
+        _ => "Færdig"
+    };
 
     private const string EksempelStavning =
         "Han gik på en lang gå-tur og spilst en is sammen med hans bror. " +
@@ -329,12 +367,19 @@
         "I løbet af det sidste år, har vi lavet en masse ændringer på den måde som vi arbejder på, og det har givet rigtig gode resultater i forhold til hvor tilfredse vores kunder er.\n\n" +
         "Fremover vil vi fortsætte med at have fokus på dette område, fordi vi mener at det er vigtigt for vores forretning og for vores kunder.";
 
+    private const string EksempelLaerer =
+        "Min sommerferie var rigtig god. Jeg var i sommerhus med min familie. " +
+        "Vi var ved stranden hver dag. Vi spiste is. Det var sjovt. " +
+        "Min lillebror byggede et stort sandslot. Det væltede da en bølge kom. " +
+        "Min mor og far læste bøger. Jeg legede med min ven Mads.";
+
     private void SetMode(CoachMode mode)
     {
         if (_mode == mode || _isChecking) return;
         _mode = mode;
         _corrections = null;
         _forbedringer = null;
+        _laererFeedback = null;
         _afsnit = Array.Empty<string>();
         _latencyMs = null;
         _usage = null;
@@ -355,15 +400,26 @@
                 var resultat = await Skrivecoach.TjekTekstAsync(_tekst, _cts.Token);
                 _corrections = resultat.Corrections.ToList();
                 _forbedringer = null;
+                _laererFeedback = null;
                 _usage = resultat.Usage;
                 _latencyMs = resultat.LatencyMs;
             }
-            else
+            else if (_mode == CoachMode.Forbedringer)
             {
                 var resultat = await Skrivecoach.ForbedrTekstAsync(_tekst, _cts.Token);
                 _forbedringer = resultat.Forbedringer.ToList();
                 _afsnit = resultat.Afsnit.ToArray();
                 _corrections = null;
+                _laererFeedback = null;
+                _usage = resultat.Usage;
+                _latencyMs = resultat.LatencyMs;
+            }
+            else if (_mode == CoachMode.Laerer)
+            {
+                var resultat = await Skrivecoach.LaererFeedbackAsync(_tekst, _klassetrin, _cts.Token);
+                _laererFeedback = resultat.Feedback;
+                _corrections = null;
+                _forbedringer = null;
                 _usage = resultat.Usage;
                 _latencyMs = resultat.LatencyMs;
             }
@@ -513,6 +569,7 @@
     {
         _corrections = null;
         _forbedringer = null;
+        _laererFeedback = null;
         _afsnit = Array.Empty<string>();
         _latencyMs = null;
         _usage = null;
@@ -523,6 +580,7 @@
         _tekst = string.Empty;
         _corrections = null;
         _forbedringer = null;
+        _laererFeedback = null;
         _afsnit = Array.Empty<string>();
         _fejlbesked = null;
         _latencyMs = null;
@@ -531,8 +589,24 @@
 
     private void IndsætEksempel()
     {
-        _tekst = _mode == CoachMode.Stavning ? EksempelStavning : EksempelForbedringer;
+        _tekst = _mode switch
+        {
+            CoachMode.Stavning => EksempelStavning,
+            CoachMode.Forbedringer => EksempelForbedringer,
+            CoachMode.Laerer => EksempelLaerer,
+            _ => EksempelStavning
+        };
     }
+
+    private static string KlassetrinLabel(Klassetrin trin) => trin switch
+    {
+        Klassetrin.Indskoling => "Indskoling (0.-3. klasse)",
+        Klassetrin.Mellemtrin => "Mellemtrin (4.-6. klasse)",
+        Klassetrin.Udskoling => "Udskoling (7.-9. klasse)",
+        Klassetrin.Gymnasium => "Gymnasium",
+        Klassetrin.Voksen => "Voksen",
+        _ => trin.ToString()
+    };
 
     private static string CssClassFor(Correction c) => c.ParsedType switch
     {
