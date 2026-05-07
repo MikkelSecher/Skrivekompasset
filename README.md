@@ -1,4 +1,4 @@
-# Ordbogen Skrivecoach
+# Skrivekompasset
 
 En lille Blazor Server-webapp der demonstrerer hvad [ordbogen.ai](https://www.ordbogen.ai)-API'et kan bruges til. App'en hjælper skribenter på dansk med tre forskellige typer feedback — fra inline stave-/grammatikfejl til pædagogisk lærer-tilbagemelding tilpasset klassetrin.
 
@@ -25,8 +25,8 @@ Krav:
 ### Opsætning
 
 ```powershell
-# Stå i Ordbogen.Skrivecoach-mappen
-cd Ordbogen.Skrivecoach
+# Stå i Ordbogen.Skrivekompasset-mappen
+cd Ordbogen.Skrivekompasset
 
 # Læg API-nøglen i user-secrets (ligger uden for projektet, ikke i Git)
 dotnet user-secrets set "Ordbogen:ApiKey" "<din-nøgle>"
@@ -90,7 +90,7 @@ App'en har en mode-toggle øverst hvor du vælger mellem de tre funktioner. Tils
 }
 ```
 
-Servicekoden ([`SkrivecoachService.TjekTekstAsync`](Ordbogen.Skrivecoach/Services/SkrivecoachService.cs)) re-aligner offsets efter kaldet: modellen er god til at identificere `original`, men ofte upræcis på `start`/`end`. Vi finder den faktiske position af `original` i teksten via string-search og bruger modellens offset som hint til at vælge rigtig forekomst når samme ord står flere steder.
+Servicekoden ([`SkrivekompassetService.TjekTekstAsync`](Ordbogen.Skrivekompasset/Services/SkrivekompassetService.cs)) re-aligner offsets efter kaldet: modellen er god til at identificere `original`, men ofte upræcis på `start`/`end`. Vi finder den faktiske position af `original` i teksten via string-search og bruger modellens offset som hint til at vælge rigtig forekomst når samme ord står flere steder.
 
 ### 2. Forbedringsforslag
 
@@ -139,7 +139,7 @@ I løbet af det sidste år, har vi lavet en masse ændringer ...
 }
 ```
 
-Vi bruger `paragraph_index` til at mappe forslag tilbage til den oprindelige afsnitsarray ([`SkrivecoachService.ForbedrTekstAsync`](Ordbogen.Skrivecoach/Services/SkrivecoachService.cs)). Modellen behøver ikke gentage `original`-teksten — vi har den allerede klient-side.
+Vi bruger `paragraph_index` til at mappe forslag tilbage til den oprindelige afsnitsarray ([`SkrivekompassetService.ForbedrTekstAsync`](Ordbogen.Skrivekompasset/Services/SkrivekompassetService.cs)). Modellen behøver ikke gentage `original`-teksten — vi har den allerede klient-side.
 
 ### 3. Lærer-feedback
 
@@ -175,7 +175,7 @@ Skift klassetrin på samme tekst og kør igen — du vil se at både sprog og fo
 }
 ```
 
-Prompten bygges dynamisk i [`SkrivecoachService.BuildLaererInstructions`](Ordbogen.Skrivecoach/Services/SkrivecoachService.cs) — rolle, fokusområder og tone vælges ud fra `Klassetrin`-enum'en.
+Prompten bygges dynamisk i [`SkrivekompassetService.BuildLaererInstructions`](Ordbogen.Skrivekompasset/Services/SkrivekompassetService.cs) — rolle, fokusområder og tone vælges ud fra `Klassetrin`-enum'en.
 
 **Forventet svar:**
 
@@ -221,7 +221,7 @@ Bruger samme `Klassetrin`-enum som lærer-feedback, så samme dropdown styrer be
 }
 ```
 
-System-prompten ([`SkrivecoachService.BuildHjaelpInstructions`](Ordbogen.Skrivecoach/Services/SkrivecoachService.cs)) varierer rolle, tone og fokus efter klassetrin, men holder den hårde regel konstant: ingen konkrete svar, ingen beregninger, ingen færdige tekster eller analyser.
+System-prompten ([`SkrivekompassetService.BuildHjaelpInstructions`](Ordbogen.Skrivekompasset/Services/SkrivekompassetService.cs)) varierer rolle, tone og fokus efter klassetrin, men holder den hårde regel konstant: ingen konkrete svar, ingen beregninger, ingen færdige tekster eller analyser.
 
 **Forventet svar:**
 
@@ -254,7 +254,7 @@ System-prompten ([`SkrivecoachService.BuildHjaelpInstructions`](Ordbogen.Skrivec
 ```
 Browser ──HTTPS──► Blazor Server (interactive)
                         │
-                        │  SkrivecoachService.{TjekTekst,ForbedrTekst,LaererFeedback}Async
+                        │  SkrivekompassetService.{TjekTekst,ForbedrTekst,LaererFeedback}Async
                         │
                         ▼
                    OrdbogenClient (typed HttpClient)
@@ -270,14 +270,14 @@ Browser ──HTTPS──► Blazor Server (interactive)
 - **API-nøglen forlader aldrig serveren.** Blazor Server-rendering betyder at alle servicekald sker server-side, og browseren kommunikerer kun via SignalR. `OrdbogenClient` er registreret som typed `HttpClient` i `Program.cs` med `Authorization: Bearer`-headeren sat én gang.
 - **Tre tynde lag:**
   - `OrdbogenClient` — kender kun rå HTTP og deserialisering. Kaster `OrdbogenApiException` på fejl.
-  - `SkrivecoachService` — kender kun ordbogen.ai's prompt-mønstre. Bygger schema-prompts og parser model-output til domænetyper.
+  - `SkrivekompassetService` — kender kun ordbogen.ai's prompt-mønstre. Bygger schema-prompts og parser model-output til domænetyper.
   - `Components/Pages/Home.razor` — UI-state og brugerinteraktion. Kalder service'en og rendrer resultatet pr. mode.
 - **Strukturerede svar via prompt frem for json_schema.** Vi sender `"text": { "format": { "type": "json_object" } }` og specificerer schemaet i prompten i stedet for via `text.format.type = "json_schema"`. Sidstnævnte returnerer pt. en truncated chunked-respons fra ordbogen.ai's backend (se [Kendte forbehold](#kendte-forbehold)).
 
 ## Filstruktur
 
 ```
-Ordbogen.Skrivecoach/
+Ordbogen.Skrivekompasset/
 ├── Program.cs                            DI-opsætning, typed HttpClient
 ├── appsettings.json                      BaseUrl, Model (ingen nøgle)
 ├── Models/
@@ -290,7 +290,7 @@ Ordbogen.Skrivecoach/
 ├── Services/
 │   ├── OrdbogenClient.cs                 HTTP-kald til POST /responses
 │   ├── OrdbogenApiException.cs           Domæne-specifik exception
-│   └── SkrivecoachService.cs             Fire prompt-flows + parsing
+│   └── SkrivekompassetService.cs             Fire prompt-flows + parsing
 ├── Components/
 │   ├── AnnotatedText.razor               Renderer tekst med <mark>-spans
 │   ├── Layout/
@@ -307,7 +307,7 @@ Ordbogen.Skrivecoach/
 ordbogen.ai's backend returnerer en chunked HTTP 200-respons der bliver afbrudt efter ~30 bytes (`{"ordbogen-identifier": "xxx[]`), uanset om `strict: true` eller `false`. Vi bruger derfor `json_object` og specificerer schemaet i prompten. Skemaet skal i øvrigt have et fladere format end OpenAI's API — `name`/`schema` er søskende til `type`, ikke nested i et `json_schema`-objekt.
 
 **LLM'er er dårlige til at tælle char-offsets.**
-I stavnings-mode kan modellen returnere `start`/`end`-offsets der er off-by-N. `RealignAndFilter` i `SkrivecoachService` kompenserer ved at finde `original` i teksten og rewrite offsets til de faktiske positioner. Hvis `original` ikke kan findes, droppes rettelsen.
+I stavnings-mode kan modellen returnere `start`/`end`-offsets der er off-by-N. `RealignAndFilter` i `SkrivekompassetService` kompenserer ved at finde `original` i teksten og rewrite offsets til de faktiske positioner. Hvis `original` ikke kan findes, droppes rettelsen.
 
 **Output indeholder både `reasoning` og `message` items.**
 ordbogen.ai's `output[]`-array har typisk to entries: en `"reasoning"` (uden tekst) og en `"message"` (med teksten i `content[0].text`). `OrdbogenClient.ExtractText` itererer og returnerer det første ikke-tomme tekst-felt.

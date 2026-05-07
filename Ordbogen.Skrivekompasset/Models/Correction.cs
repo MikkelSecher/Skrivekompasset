@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Ordbogen.Skrivecoach.Models;
+namespace Ordbogen.Skrivekompasset.Models;
 
 public enum CorrectionType
 {
@@ -29,7 +29,7 @@ public sealed record Correction(
 public sealed record CorrectionsPayload(
     [property: JsonPropertyName("corrections")] List<Correction> Corrections);
 
-public sealed record SkrivecoachResultat(
+public sealed record SkrivekompassetResultat(
     IReadOnlyList<Correction> Corrections,
     ResponsesUsage? Usage,
     long LatencyMs);

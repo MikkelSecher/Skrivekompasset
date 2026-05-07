@@ -2,15 +2,15 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
-using Ordbogen.Skrivecoach.Models;
+using Ordbogen.Skrivekompasset.Models;
 
-namespace Ordbogen.Skrivecoach.Services;
+namespace Ordbogen.Skrivekompasset.Services;
 
-public sealed class SkrivecoachService
+public sealed class SkrivekompassetService
 {
     private readonly OrdbogenClient _client;
     private readonly OrdbogenOptions _options;
-    private readonly ILogger<SkrivecoachService> _log;
+    private readonly ILogger<SkrivekompassetService> _log;
 
     private const string Instructions = """
 Du er en dansk skrivecoach. Find stave-, grammatik- og stilfejl i den brugerleverede tekst.
@@ -40,7 +40,7 @@ Regler:
 - Hvis teksten er fejlfri, returnér {"corrections": []}.
 """;
 
-    public SkrivecoachService(OrdbogenClient client, IOptions<OrdbogenOptions> options, ILogger<SkrivecoachService> log)
+    public SkrivekompassetService(OrdbogenClient client, IOptions<OrdbogenOptions> options, ILogger<SkrivekompassetService> log)
     {
         _client = client;
         _options = options.Value;
@@ -58,11 +58,11 @@ Regler:
         }
     }
 
-    public async Task<SkrivecoachResultat> TjekTekstAsync(string tekst, CancellationToken ct)
+    public async Task<SkrivekompassetResultat> TjekTekstAsync(string tekst, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(tekst))
         {
-            return new SkrivecoachResultat(Array.Empty<Correction>(), null, 0);
+            return new SkrivekompassetResultat(Array.Empty<Correction>(), null, 0);
         }
         EnsureInputWithinLimit(tekst);
 
@@ -92,7 +92,7 @@ Regler:
         if (string.IsNullOrWhiteSpace(raw))
         {
             _log.LogWarning("Tomt output fra ordbogen.ai (id={Id}, status={Status})", response.Id, response.Status);
-            return new SkrivecoachResultat(Array.Empty<Correction>(), response.Usage, sw.ElapsedMilliseconds);
+            return new SkrivekompassetResultat(Array.Empty<Correction>(), response.Usage, sw.ElapsedMilliseconds);
         }
 
         try
@@ -100,7 +100,7 @@ Regler:
             var payload = JsonSerializer.Deserialize<CorrectionsPayload>(raw)
                 ?? new CorrectionsPayload(new List<Correction>());
             var realigned = RealignAndFilter(tekst, payload.Corrections);
-            return new SkrivecoachResultat(realigned, response.Usage, sw.ElapsedMilliseconds);
+            return new SkrivekompassetResultat(realigned, response.Usage, sw.ElapsedMilliseconds);
         }
         catch (JsonException ex)
         {

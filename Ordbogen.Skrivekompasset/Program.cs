@@ -1,9 +1,9 @@
 using System.Net.Http.Headers;
-using Ordbogen.Skrivecoach.Components;
-using Ordbogen.Skrivecoach.Models;
-using Ordbogen.Skrivecoach.Services;
+using Ordbogen.Skrivekompasset.Components;
+using Ordbogen.Skrivekompasset.Models;
+using Ordbogen.Skrivekompasset.Services;
 
-namespace Ordbogen.Skrivecoach;
+namespace Ordbogen.Skrivekompasset;
 
 public class Program
 {
@@ -32,7 +32,7 @@ public class Program
             }
         });
 
-        builder.Services.AddScoped<SkrivecoachService>();
+        builder.Services.AddScoped<SkrivekompassetService>();
 
         var app = builder.Build();
 

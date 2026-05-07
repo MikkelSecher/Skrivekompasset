@@ -8,7 +8,7 @@ Blazor Server-app der demonstrerer ordbogen.ai's Responses API. Fire modes — s
 
 ## Commands
 
-Run from `Ordbogen.Skrivecoach/` (the project subfolder, not the repo root):
+Run from `Ordbogen.Skrivekompasset/` (the project subfolder, not the repo root):
 
 ```powershell
 dotnet build
@@ -19,7 +19,7 @@ dotnet user-secrets list                            # verify
 
 App'en kører på .NET 10 (8/9 fungerer hvis `<TargetFramework>` opdateres). Ingen tests pt.
 
-**Vigtigt ved gen-build under udvikling:** Hvis dev-serveren kører, holder den `Ordbogen.Skrivecoach.exe` låst og rebuild fejler med MSB3027. Stop processen før du builder igen.
+**Vigtigt ved gen-build under udvikling:** Hvis dev-serveren kører, holder den `Ordbogen.Skrivekompasset.exe` låst og rebuild fejler med MSB3027. Stop processen før du builder igen.
 
 ## Architecture
 
@@ -27,12 +27,12 @@ App'en kører på .NET 10 (8/9 fungerer hvis `<TargetFramework>` opdateres). Ing
 
 ```
 Home.razor (UI state)
-  → SkrivecoachService (prompt-bygning + JSON-parsing)
+  → SkrivekompassetService (prompt-bygning + JSON-parsing)
     → OrdbogenClient (typed HttpClient, kun rå HTTP)
       → POST /v1/responses
 ```
 
-`OrdbogenClient` ved kun om HTTP og deserialisering. `SkrivecoachService` ejer alle prompts og er det eneste sted modellens output omsættes til domænetyper. UI'et indeholder al brugerinteraktion og mode-state. Tilføj nye AI-features ved at lægge en ny metode på `SkrivecoachService` — undgå at skrive direkte mod `OrdbogenClient` fra UI'et.
+`OrdbogenClient` ved kun om HTTP og deserialisering. `SkrivekompassetService` ejer alle prompts og er det eneste sted modellens output omsættes til domænetyper. UI'et indeholder al brugerinteraktion og mode-state. Tilføj nye AI-features ved at lægge en ny metode på `SkrivekompassetService` — undgå at skrive direkte mod `OrdbogenClient` fra UI'et.
 
 ### Prompt-mønster: alle fire modes bruger `json_object` + schema-i-prompt
 
@@ -46,7 +46,7 @@ ordbogen.ai's response-shape afviger også fra OpenAI's: `output[]` indeholder t
 
 ### Stavnings-mode: realignment af LLM offsets
 
-LLM'er er notorisk dårlige til char-counting. Modellen returnerer `start`/`end` der ofte er off-by-N. `SkrivecoachService.RealignAndFilter` finder `original`-strengen i teksten med `IndexOf` og rewriter offsets — modellens claim'ede `start` bruges kun som hint til at vælge nærmeste forekomst. `Home.razor.LokaliserOriginal` gør samme tjek belt-and-braces før substitution. Lige tilføjelse af nye features der bruger char-offsets: brug samme mønster (string-search med claim'et offset som hint) i stedet for at stole på modellens tal.
+LLM'er er notorisk dårlige til char-counting. Modellen returnerer `start`/`end` der ofte er off-by-N. `SkrivekompassetService.RealignAndFilter` finder `original`-strengen i teksten med `IndexOf` og rewriter offsets — modellens claim'ede `start` bruges kun som hint til at vælge nærmeste forekomst. `Home.razor.LokaliserOriginal` gør samme tjek belt-and-braces før substitution. Lige tilføjelse af nye features der bruger char-offsets: brug samme mønster (string-search med claim'et offset som hint) i stedet for at stole på modellens tal.
 
 Forbedringer-mode bruger `paragraph_index` i stedet for offsets — meget mere robust. Foretræk index-baserede patterns over offset-baserede for nye features hvor det er muligt.
 
@@ -68,4 +68,4 @@ Når du tilføjer en ny mode: bestem først om den tematisk hører til S/F/L-gru
 
 ## Dansk vs engelsk
 
-Al UI-tekst, prompts og kommentarer er på dansk for at matche målgruppen. Bevar dansk i nye prompts/UI. Variabel- og typenavne følger dansk domænesprog (`Skrivecoach`, `Forbedring`, `Klassetrin`, `Afsnit`) — hold den linje for konsistens.
+Al UI-tekst, prompts og kommentarer er på dansk for at matche målgruppen. Bevar dansk i nye prompts/UI. Variabel- og typenavne følger dansk domænesprog (`Skrivekompasset`, `Forbedring`, `Klassetrin`, `Afsnit`) — hold den linje for konsistens.

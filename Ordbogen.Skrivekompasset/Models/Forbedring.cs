@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Ordbogen.Skrivecoach.Models;
+namespace Ordbogen.Skrivekompasset.Models;
 
 public sealed record Forbedring(
     [property: JsonPropertyName("paragraph_index")] int ParagraphIndex,

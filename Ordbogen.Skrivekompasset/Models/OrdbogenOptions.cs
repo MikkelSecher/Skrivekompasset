@@ -1,4 +1,4 @@
-namespace Ordbogen.Skrivecoach.Models;
+namespace Ordbogen.Skrivekompasset.Models;
 
 public sealed class OrdbogenOptions
 {

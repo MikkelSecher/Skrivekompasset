@@ -59,20 +59,20 @@ h1:focus {
     text-align: start;
 }
 
-/* ---------- Skrivecoach ---------- */
+/* ---------- Skrivekompasset ---------- */
 
-.skrivecoach {
+.skrivekompasset {
     max-width: 1200px;
     margin: 0 auto;
     padding: 1rem 0 2rem;
 }
 
-.skrivecoach-header h1 {
+.skrivekompasset-header h1 {
     margin: 0 0 .25rem;
     font-size: 1.75rem;
 }
 
-.skrivecoach-header .lead {
+.skrivekompasset-header .lead {
     color: #555;
     margin: 0 0 1.25rem;
 }
@@ -158,7 +158,7 @@ h1:focus {
     word-wrap: break-word;
 }
 
-.skrivecoach-layout {
+.skrivekompasset-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 360px;
     gap: 1.25rem;
@@ -166,7 +166,7 @@ h1:focus {
 }
 
 @media (max-width: 900px) {
-    .skrivecoach-layout {
+    .skrivekompasset-layout {
         grid-template-columns: 1fr;
     }
 }
@@ -439,7 +439,7 @@ h1:focus {
     gap: .35rem;
 }
 
-.skrivecoach-footer {
+.skrivekompasset-footer {
     margin-top: 1rem;
     color: #6b7280;
     font-size: .85rem;

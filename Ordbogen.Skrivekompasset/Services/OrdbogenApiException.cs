@@ -1,4 +1,4 @@
-namespace Ordbogen.Skrivecoach.Services;
+namespace Ordbogen.Skrivekompasset.Services;
 
 public sealed class OrdbogenApiException : Exception
 {

@@ -1,16 +1,16 @@
 @page "/"
 @rendermode InteractiveServer
-@using Ordbogen.Skrivecoach.Models
-@using Ordbogen.Skrivecoach.Services
-@inject SkrivecoachService Skrivecoach
+@using Ordbogen.Skrivekompasset.Models
+@using Ordbogen.Skrivekompasset.Services
+@inject SkrivekompassetService Skrivekompasset
 @inject ILogger<Home> Log
 @implements IDisposable
 
-<PageTitle>Dansk Skrivecoach</PageTitle>
+<PageTitle>Skrivekompasset</PageTitle>
 
-<div class="skrivecoach">
-    <header class="skrivecoach-header">
-        <h1>Dansk Skrivecoach</h1>
+<div class="skrivekompasset">
+    <header class="skrivekompasset-header">
+        <h1>Skrivekompasset</h1>
         <p class="lead">@LeadText</p>
     </header>
 
@@ -62,7 +62,7 @@
         </div>
     }
 
-    <div class="skrivecoach-layout">
+    <div class="skrivekompasset-layout">
         <section class="editor-pane">
             @if (!HarResultat)
             {
@@ -71,14 +71,14 @@
                           @bind:event="oninput"
                           placeholder="@PlaceholderText"
                           rows="14"
-                          maxlength="@Skrivecoach.MaxInputCharacters"
+                          maxlength="@Skrivekompasset.MaxInputCharacters"
                           disabled="@_isChecking"></textarea>
                 <div class="char-counter @CounterCssClass">
-                    @if (CurrentInput.Length > Skrivecoach.MaxInputCharacters)
+                    @if (CurrentInput.Length > Skrivekompasset.MaxInputCharacters)
                     {
-                        <span>For lang — fjern @(CurrentInput.Length - Skrivecoach.MaxInputCharacters) tegn.</span>
+                        <span>For lang — fjern @(CurrentInput.Length - Skrivekompasset.MaxInputCharacters) tegn.</span>
                     }
-                    <span class="char-counter-tal">@CurrentInput.Length.ToString("N0") / @Skrivecoach.MaxInputCharacters.ToString("N0")</span>
+                    <span class="char-counter-tal">@CurrentInput.Length.ToString("N0") / @Skrivekompasset.MaxInputCharacters.ToString("N0")</span>
                 </div>
             }
             else if (_mode == CoachMode.Stavning && _corrections is not null)
@@ -114,7 +114,7 @@
             <div class="editor-actions">
                 @if (!HarResultat)
                 {
-                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(CurrentInput) || CurrentInput.Length > Skrivecoach.MaxInputCharacters)">
+                    <button class="btn-primary" @onclick="TjekAsync" disabled="@(_isChecking || string.IsNullOrWhiteSpace(CurrentInput) || CurrentInput.Length > Skrivekompasset.MaxInputCharacters)">
                         @if (_isChecking)
                         {
                             <span class="spinner"></span>
@@ -356,7 +356,7 @@
 
     @if (_latencyMs is not null)
     {
-        <footer class="skrivecoach-footer">
+        <footer class="skrivekompasset-footer">
             @FooterVerb på @(_latencyMs)ms
             @if (_usage is not null)
             {
@@ -410,7 +410,7 @@
     {
         get
         {
-            var max = Skrivecoach.MaxInputCharacters;
+            var max = Skrivekompasset.MaxInputCharacters;
             var len = CurrentInput.Length;
             if (len > max) return "char-counter-over";
             if (len > max * 0.9) return "char-counter-near";
@@ -562,14 +562,14 @@
         {
             if (_mode == CoachMode.Stavning)
             {
-                var resultat = await Skrivecoach.TjekTekstAsync(_tekst, _cts.Token);
+                var resultat = await Skrivekompasset.TjekTekstAsync(_tekst, _cts.Token);
                 _corrections = resultat.Corrections.ToList();
                 _stavningLatencyMs = resultat.LatencyMs;
                 _stavningUsage = resultat.Usage;
             }
             else if (_mode == CoachMode.Forbedringer)
             {
-                var resultat = await Skrivecoach.ForbedrTekstAsync(_tekst, _cts.Token);
+                var resultat = await Skrivekompasset.ForbedrTekstAsync(_tekst, _cts.Token);
                 _forbedringer = resultat.Forbedringer.ToList();
                 _afsnit = resultat.Afsnit.ToArray();
                 _forbedringerLatencyMs = resultat.LatencyMs;
@@ -577,14 +577,14 @@
             }
             else if (_mode == CoachMode.Laerer)
             {
-                var resultat = await Skrivecoach.LaererFeedbackAsync(_tekst, _klassetrin, _cts.Token);
+                var resultat = await Skrivekompasset.LaererFeedbackAsync(_tekst, _klassetrin, _cts.Token);
                 _laererFeedback = resultat.Feedback;
                 _laererLatencyMs = resultat.LatencyMs;
                 _laererUsage = resultat.Usage;
             }
             else if (_mode == CoachMode.Hjaelp)
             {
-                var resultat = await Skrivecoach.HjaelpIGangAsync(_hjaelpTekst, _klassetrin, _cts.Token);
+                var resultat = await Skrivekompasset.HjaelpIGangAsync(_hjaelpTekst, _klassetrin, _cts.Token);
                 _opgaveHjaelp = resultat.Hjaelp;
                 _hjaelpLatencyMs = resultat.LatencyMs;
                 _hjaelpUsage = resultat.Usage;
@@ -597,12 +597,12 @@
         catch (OrdbogenApiException ex)
         {
             _fejlbesked = ex.Message;
-            Log.LogWarning(ex, "Skrivecoach-kald fejlede");
+            Log.LogWarning(ex, "Skrivekompasset-kald fejlede");
         }
         catch (Exception ex)
         {
             _fejlbesked = "Uventet fejl: " + ex.Message;
-            Log.LogError(ex, "Uventet fejl ved skrivecoach-kald");
+            Log.LogError(ex, "Uventet fejl ved skrivekompasset-kald");
         }
         finally
         {

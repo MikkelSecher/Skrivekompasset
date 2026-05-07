@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Ordbogen.Skrivecoach.Models;
+namespace Ordbogen.Skrivekompasset.Models;
 
 public sealed record HjaelpTrin(
     [property: JsonPropertyName("titel")] string Titel,

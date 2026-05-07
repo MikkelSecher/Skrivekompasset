@@ -1,8 +1,8 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Ordbogen.Skrivecoach.Models;
+using Ordbogen.Skrivekompasset.Models;
 
-namespace Ordbogen.Skrivecoach.Services;
+namespace Ordbogen.Skrivekompasset.Services;
 
 public sealed class OrdbogenClient
 {
